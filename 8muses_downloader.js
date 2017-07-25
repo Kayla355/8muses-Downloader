@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         8 Muses Downloader
+// @name         8Muses Downloader
 // @namespace    https://github.com/Kayla355
 // @version      0.1
 // @description  Download comics from 8muses.com
