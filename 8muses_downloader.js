@@ -1,20 +1,50 @@
 // ==UserScript==
 // @name         8Muses Downloader
 // @namespace    https://github.com/Kayla355
-// @version      0.1
+// @version      0.2
 // @description  Download comics from 8muses.com
 // @author       Kayla355
+// @match        http://www.8muses.com/comix/album/*
 // @match        https://www.8muses.com/comix/album/*
 // @grant        GM_xmlhttpRequest
+// @grant        GM_addStyle
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_registerMenuCommand
 // @run-at       document-idle
 // @icon         https://www.8muses.com/favicon.ico
 // @require      https://cdn.jsdelivr.net/jszip/3.1.3/jszip.min.js
 // @require      https://cdn.jsdelivr.net/filesaver.js/1.3.3/FileSaver.min.js
+// @require      https://cdn.rawgit.com/Kayla355/MonkeyConfig/d152bb448db130169dbd659b28375ae96e4c482d/monkeyconfig.js
+// @history      0.2 'Download all', now has an option to compress all the individual .zip files into one zip with sub-folders. By default this will be on.
 // ==/UserScript==
+cfg = new MonkeyConfig({
+    title: '8Muses Downloader - Configuration',
+    menuCommand: true,
+    params: {
+        single_file: {
+            type: 'checkbox',
+            default: true
+        }
+    },
+    onSave: setOptions
+});
+
+var Settings = {
+	singleFile: null,
+};
+
+var zipArray = [];
+var downloadType;
 var progress = {
 	current: 0,
 	items: 0
 };
+
+function setOptions() {
+    Settings.singleFile = cfg.get('single_file');
+}
+setOptions();
 
 (function() {
     'use strict';
@@ -36,8 +66,8 @@ function init() {
 }
 
 function createElements(type) {
-	if(!type) type = 'single';
-	var downloadText = (type == "multi") ? 'Download All':'Download';
+	downloadType = type || 'single';
+	var downloadText = (downloadType == "multi") ? 'Download All':'Download';
 	var div = document.createElement('div');
 			div.className += 'download show-tablet show-desktop block';
 			div.style = "background-color: #3a4050; margin-right: -20px; margin-left: 21px;";
@@ -45,7 +75,7 @@ function createElements(type) {
 			a.href = "#";
 			a.style = "color: #fff; text-decoration: none; padding: 15px 20px 15px 10px;";
 			a.innerHTML = '<i class="fa fa-arrow-down icon-inline" style="color: #242730;"></i>'+ downloadText;
-			a.onclick = (type == "multi") ? downloadAll:downloadComic;
+			a.onclick = downloadHandler;
 	var bar = document.createElement('div');
 			bar.innerHTML = `<div class="loading-bar" style="position: absolute; right: 0px; top: 50px; background-color: aliceblue; display: none;">
 				<center class="value" style="position: absolute; left: 0px; right: 0px; color: #242730;">0%</center>
@@ -68,13 +98,23 @@ function updateProgressbar(status, hide) {
 	}
 }
 
+function downloadHandler(e) {
+	if(document.querySelector('.loading-bar').style.display !== "none") return;
+
+	if(downloadType == "multi") {
+		downloadAll();
+	} else {
+		downloadComic();
+	}
+}
+
 function downloadComic(container) {
-	var imageContainers = (container.length) ? container:document.querySelectorAll('.gallery .image-box:not(.image-a)');
+	var imageContainers = (container) ? container:document.querySelectorAll('.gallery .image-box:not(.image-a)');
 	var images = [];
 	var doneLength = 0;
 	var isImageAlbum = !!imageContainers[0].attributes.href.value.match(/comix\/picture\//i);
 
-	if(!container.length) updateProgressbar(0);
+	if(!container) updateProgressbar(0);
 	if(isImageAlbum) progress.items += imageContainers.length;
 
 	for(var i=0; i < imageContainers.length; i++) {
@@ -87,7 +127,7 @@ function downloadComic(container) {
 			images[j].blob = object.blob;
 			doneLength++;
 
-			if(!container.length) {
+			if(!container) {
 				updateProgressbar(Math.round((doneLength/imageContainers.length)*100));
 			} else if(isImageAlbum) {
 				progress.current++;
@@ -95,16 +135,16 @@ function downloadComic(container) {
 			}
 
 			if(doneLength >= imageContainers.length) generateZip(images);
-		})
+		});
 	}
 }
 
 function downloadAll(container) {
-	var itemContainers = (container.length) ? container:document.querySelectorAll('.gallery .image-box:not(.image-a)');
+	var itemContainers = (container) ? container:document.querySelectorAll('.gallery .image-box:not(.image-a)');
 	var items = [];
 	var doneLength = 0;
 
-	if(!container.length) updateProgressbar(0);
+	if(!container) updateProgressbar(0);
 
 	for(var i=0; i < itemContainers.length; i++) {
 		let href = location.protocol +'//'+ location.hostname + itemContainers[i].attributes.href.value;
@@ -117,7 +157,7 @@ function downloadAll(container) {
 			} else {
 				downloadAll(imagebox);
 			}
-		})
+		});
 	}
 }
 
@@ -140,7 +180,7 @@ function getPage(i, image, callback) {
 			xhr.onload = function(e) {
 				var container = document.implementation.createHTMLDocument().documentElement;
       	container.innerHTML = xhr.responseText;
-      	
+
       	object.path = image.href.match(/^.*?[0-9]+\/(.*\/).*$/)[1]; // including author
       	// object.path = image.href.match(/^.*?[0-9]+\/.*?\/(.*\/).*$/)[1]; 		// no author
       	object.name = container.querySelector('.top-menu-breadcrumb li:last-of-type').innerText.trim();
@@ -150,7 +190,7 @@ function getPage(i, image, callback) {
       		if(!blob) return;
       		object.blob = blob;
       		callback(i, object);
-      	})
+      	});
 			};
 			xhr.send();
 }
@@ -164,7 +204,6 @@ function getImageAsBlob(url, callback) {
 	        var blob = xhr.response;
 
 	        callback(blob);
-	        
 	    }
 	});
 
@@ -181,18 +220,38 @@ function getImageAsBlob(url, callback) {
 
 function generateZip(images) {
 	var zip = new JSZip();
-	for(var i=0; i < images.length; i++) {
-		zip.file(images[i].name, images[i].blob);
-	}
+	var filename = getFileName(images[0].path);
 
-	// Blob
-  zip.generateAsync({type:"blob"}).then(function (blob) {
-  	var filename = getFileName(images[0].path);
-  	if(progress.current === progress.items) updateProgressbar('Done!');
-    saveAs(blob, filename+'.zip');
-  }, function (err) {
-      console.error('Error saving zip: ' +err);
-  });
+	// Generate single or multiple zip files.
+	if(Settings.singleFile && progress.current > 0) {
+		for(let i=0; i < images.length; i++) {
+			zipArray.push({name: filename +'/'+ images[i].name, blob: images[i].blob});
+			// zip.file(images[i].name, images[i].blob);
+		}
+
+		if(progress.current === progress.items) {
+			var singleZip = new JSZip();
+			for(let i=0; i < zipArray.length; i++) {
+				singleZip.file(zipArray[i].name, zipArray[i].blob);
+			}
+			saveZip(singleZip, filename.match(/\[(.*)\]/)[1]);
+		}
+	} else {
+		for(let i=0; i < images.length; i++) {
+			zip.file(images[i].name, images[i].blob);
+		}
+		saveZip(zip, filename);
+	}
+}
+
+function saveZip(zip, filename) {
+	zip.generateAsync({type:"blob"}).then(function (blob) {
+
+	if(progress.current === progress.items) updateProgressbar('Done!');
+	  saveAs(blob, filename+'.zip');
+	}, function (err) {
+	    console.error('Error saving zip: ' +err);
+	});
 }
 
 function getFileName(pathname) {
