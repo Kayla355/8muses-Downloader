@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         8Muses Downloader
 // @namespace    https://github.com/Kayla355
-// @version      0.2
+// @version      0.2.1
 // @description  Download comics from 8muses.com
 // @author       Kayla355
 // @match        http://www.8muses.com/comix/album/*
@@ -16,7 +16,8 @@
 // @require      https://cdn.jsdelivr.net/jszip/3.1.3/jszip.min.js
 // @require      https://cdn.jsdelivr.net/filesaver.js/1.3.3/FileSaver.min.js
 // @require      https://cdn.rawgit.com/Kayla355/MonkeyConfig/d152bb448db130169dbd659b28375ae96e4c482d/monkeyconfig.js
-// @history      0.2 'Download all', now has an option to compress all the individual .zip files into one zip with sub-folders. By default this will be on.
+// @history      0.2.0 'Download all', now has an option to compress all the individual .zip files into one zip with sub-folders. By default this will be on.
+// @history      0.2.1 Added an option to compress the subfolders created from the single file download option.
 // ==/UserScript==
 cfg = new MonkeyConfig({
     title: '8Muses Downloader - Configuration',
@@ -25,6 +26,10 @@ cfg = new MonkeyConfig({
         single_file: {
             type: 'checkbox',
             default: true
+        },
+        compress_sub_folders: {
+            type: 'checkbox',
+            default: false
         }
     },
     onSave: setOptions
@@ -32,23 +37,26 @@ cfg = new MonkeyConfig({
 
 var Settings = {
 	singleFile: null,
+	compressSubFolders: null,
 };
 
 var zipArray = [];
 var downloadType;
 var progress = {
 	current: 0,
-	items: 0
+	items: 0,
+	zips: 0
 };
 
 function setOptions() {
     Settings.singleFile = cfg.get('single_file');
+    Settings.compressSubFolders = cfg.get('compress_sub_folders');
 }
-setOptions();
 
 (function() {
     'use strict';
-	init();
+    setOptions();
+    init();
 })();
 
 function init() {
@@ -115,7 +123,8 @@ function downloadComic(container) {
 	var isImageAlbum = !!imageContainers[0].attributes.href.value.match(/comix\/picture\//i);
 
 	if(!container) updateProgressbar(0);
-	if(isImageAlbum) progress.items += imageContainers.length;
+	// if(isImageAlbum) progress.items += imageContainers.length;
+	if(isImageAlbum) progress.items++;
 
 	for(var i=0; i < imageContainers.length; i++) {
 		images.push({href: location.protocol +'//'+ location.hostname + imageContainers[i].attributes.href.value});
@@ -130,11 +139,11 @@ function downloadComic(container) {
 			if(!container) {
 				updateProgressbar(Math.round((doneLength/imageContainers.length)*100));
 			} else if(isImageAlbum) {
-				progress.current++;
+				if(j === 0) progress.current++;
 				updateProgressbar(Math.round((progress.current/progress.items)*100));
 			}
 
-			if(doneLength >= imageContainers.length) generateZip(images);
+			if(doneLength >= imageContainers.length) createZip(images);
 		});
 	}
 }
@@ -218,37 +227,61 @@ function getImageAsBlob(url, callback) {
 	// xhr.send();
 }
 
-function generateZip(images) {
-	var zip = new JSZip();
+function createZip(images) {
 	var filename = getFileName(images[0].path);
 
 	// Generate single or multiple zip files.
 	if(Settings.singleFile && progress.current > 0) {
-		for(let i=0; i < images.length; i++) {
-			zipArray.push({name: filename +'/'+ images[i].name, blob: images[i].blob});
-			// zip.file(images[i].name, images[i].blob);
-		}
-
-		if(progress.current === progress.items) {
-			var singleZip = new JSZip();
-			for(let i=0; i < zipArray.length; i++) {
-				singleZip.file(zipArray[i].name, zipArray[i].blob);
+		if(Settings.compressSubFolders) {
+			var zip = new JSZip();
+			for(let i=0; i < images.length; i++) {
+				zip.file(images[i].name, images[i].blob);
 			}
-			saveZip(singleZip, filename.match(/\[(.*)\]/)[1]);
-		}
+			generateZip(zip, filename, function(blob, filename) {
+				zipArray.push({name: filename, blob: blob});
+				progress.zips++;
+				if(progress.zips === progress.items) {
+					var singleZip = new JSZip();
+					for(let i=0; i < zipArray.length; i++) {
+						singleZip.file(zipArray[i].name, zipArray[i].blob);
+					}
+					generateZip(singleZip, filename.match(/\[(.*)\]/)[1], function(blob, filename) {
+						saveAs(blob, filename+'.zip');
+					});
+				}
+			});
+		} else {
+			for(let i=0; i < images.length; i++) {
+				zipArray.push({name: filename +'/'+ images[i].name, blob: images[i].blob});
+				// zip.file(images[i].name, images[i].blob);
+			}
+
+			if(progress.current === progress.items) {
+				var singleZip = new JSZip();
+				for(let i=0; i < zipArray.length; i++) {
+					singleZip.file(zipArray[i].name, zipArray[i].blob);
+				}
+				generateZip(singleZip, filename.match(/\[(.*)\]/)[1], function(blob, filename) {
+					saveAs(blob, filename+'.zip');
+				});
+			}
+		}	
 	} else {
+		var zip = new JSZip();
 		for(let i=0; i < images.length; i++) {
 			zip.file(images[i].name, images[i].blob);
 		}
-		saveZip(zip, filename);
+		generateZip(zip, filename, function(blob, filename) {
+			saveAs(blob, filename+'.zip');
+		});
 	}
 }
 
-function saveZip(zip, filename) {
+function generateZip(zip, filename, callback) {
 	zip.generateAsync({type:"blob"}).then(function (blob) {
 
 	if(progress.current === progress.items) updateProgressbar('Done!');
-	  saveAs(blob, filename+'.zip');
+	if(typeof callback === 'function') callback(blob, filename+'.zip');
 	}, function (err) {
 	    console.error('Error saving zip: ' +err);
 	});
