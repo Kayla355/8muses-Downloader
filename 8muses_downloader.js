@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         8Muses Downloader
 // @namespace    https://github.com/Kayla355
-// @version      0.2.1
+// @version      0.2.2
 // @description  Download comics from 8muses.com
 // @author       Kayla355
 // @match        http://www.8muses.com/comix/album/*
@@ -18,6 +18,7 @@
 // @require      https://cdn.rawgit.com/Kayla355/MonkeyConfig/d152bb448db130169dbd659b28375ae96e4c482d/monkeyconfig.js
 // @history      0.2.0 'Download all', now has an option to compress all the individual .zip files into one zip with sub-folders. By default this will be on.
 // @history      0.2.1 Added an option to compress the subfolders created from the single file download option.
+// @history      0.2.2 Fixed a bug where it would trigger the download multiple times when the "single file" option was enabled and the "compress sub folders" option was not.
 // ==/UserScript==
 cfg = new MonkeyConfig({
     title: '8Muses Downloader - Configuration',
@@ -43,6 +44,10 @@ var Settings = {
 var zipArray = [];
 var downloadType;
 var progress = {
+	pages: {
+		current: 0,
+		items: 0,
+	},
 	current: 0,
 	items: 0,
 	zips: 0
@@ -123,7 +128,7 @@ function downloadComic(container) {
 	var isImageAlbum = !!imageContainers[0].attributes.href.value.match(/comix\/picture\//i);
 
 	if(!container) updateProgressbar(0);
-	// if(isImageAlbum) progress.items += imageContainers.length;
+	if(isImageAlbum) progress.pages.items += imageContainers.length;
 	if(isImageAlbum) progress.items++;
 
 	for(var i=0; i < imageContainers.length; i++) {
@@ -140,7 +145,8 @@ function downloadComic(container) {
 				updateProgressbar(Math.round((doneLength/imageContainers.length)*100));
 			} else if(isImageAlbum) {
 				if(j === 0) progress.current++;
-				updateProgressbar(Math.round((progress.current/progress.items)*100));
+				progress.pages.current++;
+				updateProgressbar(Math.round((progress.pages.current/progress.pages.items)*100));
 			}
 
 			if(doneLength >= imageContainers.length) createZip(images);
@@ -256,7 +262,7 @@ function createZip(images) {
 				// zip.file(images[i].name, images[i].blob);
 			}
 
-			if(progress.current === progress.items) {
+			if(progress.pages.current === progress.pages.items) {
 				var singleZip = new JSZip();
 				for(let i=0; i < zipArray.length; i++) {
 					singleZip.file(zipArray[i].name, zipArray[i].blob);
@@ -280,7 +286,7 @@ function createZip(images) {
 function generateZip(zip, filename, callback) {
 	zip.generateAsync({type:"blob"}).then(function (blob) {
 
-	if(progress.current === progress.items) updateProgressbar('Done!');
+	if(progress.pages.current === progress.pages.items) updateProgressbar('Done!');
 	if(typeof callback === 'function') callback(blob, filename+'.zip');
 	}, function (err) {
 	    console.error('Error saving zip: ' +err);
