@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         8Muses Downloader
 // @namespace    https://github.com/Kayla355
-// @version      0.3.1
+// @version      0.4.0
 // @description  Download comics from 8muses.com
 // @author       Kayla355
-// @match        http://www.8muses.com/comix/album/*
-// @match        https://www.8muses.com/comix/album/*
+// @match        http://www.8muses.com/comics/album/*
+// @match        https://www.8muses.com/comics/album/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
 // @grant        GM_setValue
@@ -21,6 +21,8 @@
 // @history      0.2.2 Fixed a bug where it would trigger the download multiple times when the "single file" option was enabled and the "compress sub folders" option was not.
 // @history      0.3.0 ALso added the basis for download trying to download something with pagination. However, this is disabled until I solve the issue of running out of memory while doing it.
 // @history      0.3.1 Fixed an issue caused by classnames being changed on the site.
+// @history		 0.3.2 Fixed the URL match since it was changed.
+// @history		 0.4.0 Updated the script to work with the new use of Ractive.js on the 8muses website.
 // ==/UserScript==
 cfg = new MonkeyConfig({
     title: '8Muses Downloader - Configuration',
@@ -70,7 +72,7 @@ function setOptions() {
 function init() {
 	var imagebox = document.querySelector('.gallery .c-tile:not(.image-a)');
     if(imagebox) {
-		var isImageAlbum = !!imagebox.href.match(/comix\/picture\//i);
+		var isImageAlbum = !!imagebox.href.match(/comics\/picture\//i);
 		if(isImageAlbum) {
 			createElements('single');
 		} else {
@@ -115,6 +117,8 @@ function updateProgressbar(status, hide) {
 }
 
 function downloadHandler(e) {
+	e.preventDefault();
+	e.stopPropagation();
 	if(document.querySelector('.loading-bar').style.display !== "none") return;
 
 	if(downloadType == "multi") {
@@ -128,7 +132,7 @@ function downloadComic(container) {
 	var imageContainers = (container) ? container:document.querySelectorAll('.gallery .c-tile:not(.image-a)');
 	var images = [];
 	var doneLength = 0;
-	var isImageAlbum = !!imageContainers[0].attributes.href.value.match(/comix\/picture\//i);
+	var isImageAlbum = !!imageContainers[0].attributes.href.value.match(/comics\/picture\//i);
 
 	if(!container) updateProgressbar(0);
 	if(isImageAlbum) progress.pages.items += imageContainers.length;
@@ -166,7 +170,7 @@ function downloadAll(container) {
 
 	var downloadFunc = function(albumContainer) {
 		var imagebox = albumContainer.querySelectorAll('.gallery .c-tile:not(.image-a)');
-		var isImageAlbum = !!imagebox[0].attributes.href.value.match(/comix\/picture\//i);
+		var isImageAlbum = !!imagebox[0].attributes.href.value.match(/comics\/picture\//i);
 
 		if(isImageAlbum) {
 			downloadComic(imagebox);
@@ -219,26 +223,36 @@ function getImageAlbum(url, callback) {
 }
 
 function getPageImage(i, image, callback) {
+	var decodePublic = function(t) {
+		return "!" === (e = t.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&")).charAt(0) ? e.substr(1).replace(/[\x21-\x7e]/g, function(t) {
+			return String.fromCharCode(33 + (t.charCodeAt(0) + 14) % 94);
+		}) : "";
+	};
+
 	var object = {};
 	var xhr = new XMLHttpRequest();
-			xhr.open('GET', image.href);
-			// xhr.responseType = 'blob';
-			xhr.onload = function(e) {
-				var container = document.implementation.createHTMLDocument().documentElement;
-      	container.innerHTML = xhr.responseText;
+		xhr.open('GET', image.href);
+		// xhr.responseType = 'blob';
+		xhr.onload = function(e) {
+			var container = document.implementation.createHTMLDocument().documentElement;
+				container.innerHTML = xhr.responseText;
+			var data = JSON.parse(decodePublic(container.querySelector("#ractive-public").innerHTML.trim()));
+			var ext = data.picture.normalizedPath.match(/\..*?$/i);
 
-      	object.path = image.href.match(/^.*?(picture|album)\/.*?\/(.*\/).*$/i)[2]; // including author
-      	// object.path = image.href.match(/^.*?[0-9]+\/.*?\/(.*\/).*$/)[1]; 		// no author
-      	object.name = container.querySelector('.top-menu-breadcrumb li:last-of-type').innerText.trim() + container.querySelector('#imageName').value.match(/\.([0-9a-z]+)(?:[\?#]|$)/i)[0];
-      	object.imageHref = 'https://www-8muses-com.cdn.ampproject.org/i/www.8muses.com/image/fl' + container.querySelector('#imageDir').value + container.querySelector('#imageName').value;
-      	console.log(object);
-      	getImageAsBlob(object.imageHref, function(blob) {
-      		if(!blob) return;
-      		object.blob = blob;
-      		callback(i, object);
-      	});
-			};
-			xhr.send();
+			object.path = image.href.match(/^.*?(picture|album)\/.*?\/(.*\/).*$/i)[2]; // including author
+			// object.path = image.href.match(/^.*?[0-9]+\/.*?\/(.*\/).*$/)[1]; 		// no author
+			//object.name = container.querySelector('.top-menu-breadcrumb li:last-of-type').innerText.trim(); //+ container.querySelector('#imageName').value.match(/\.([0-9a-z]+)(?:[\?#]|$)/i)[0];
+			object.name = data.picture.name + ext;
+			//object.imageHref = 'https://www-8muses-com.cdn.ampproject.org/i/www.8muses.com/image/fl' + container.querySelector('#imageDir').value + container.querySelector('#imageName').value;
+			object.imageHref = 'https://www-8muses-com.cdn.ampproject.org/i/www.8muses.com/image/fl/' + data.picture.publicUri + ext;
+			console.log(object);
+			getImageAsBlob(object.imageHref, function(blob) {
+				if(!blob) return;
+				object.blob = blob;
+				callback(i, object);
+			});
+	};
+	xhr.send();
 }
 
 function getImageAsBlob(url, callback) {
