@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         8Muses Downloader
 // @namespace    https://github.com/Kayla355
-// @version      0.4.0
+// @version      0.4.1
 // @description  Download comics from 8muses.com
 // @author       Kayla355
 // @match        http://www.8muses.com/comics/album/*
@@ -21,8 +21,9 @@
 // @history      0.2.2 Fixed a bug where it would trigger the download multiple times when the "single file" option was enabled and the "compress sub folders" option was not.
 // @history      0.3.0 ALso added the basis for download trying to download something with pagination. However, this is disabled until I solve the issue of running out of memory while doing it.
 // @history      0.3.1 Fixed an issue caused by classnames being changed on the site.
-// @history		 0.3.2 Fixed the URL match since it was changed.
-// @history		 0.4.0 Updated the script to work with the new use of Ractive.js on the 8muses website.
+// @history      0.3.2 Fixed the URL match since it was changed.
+// @history      0.4.0 Updated the script to work with the new use of Ractive.js on the 8muses website.
+// @history      0.4.1 Fixed some css to better match the site.
 // ==/UserScript==
 cfg = new MonkeyConfig({
     title: '8Muses Downloader - Configuration',
@@ -88,7 +89,7 @@ function createElements(type) {
 	var downloadText = (downloadType == "multi") ? 'Download All':'Download';
 	var div = document.createElement('div');
 			div.className += 'download show-tablet show-desktop block';
-			div.style = "background-color: #3a4050; margin-right: -20px; margin-left: 21px;";
+			div.style = "background-color: #3a4050; border-left: 1px solid #1a1c22;";
 	var a = document.createElement('a');
 			a.href = "#";
 			a.style = "color: #fff; text-decoration: none; padding: 15px 20px 15px 10px;";
