@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         8Muses Downloader
 // @namespace    https://github.com/Kayla355
-// @version      0.4.1
+// @version      0.5.0
 // @description  Download comics from 8muses.com
 // @author       Kayla355
 // @match        http://www.8muses.com/comics/album/*
@@ -24,6 +24,7 @@
 // @history      0.3.2 Fixed the URL match since it was changed.
 // @history      0.4.0 Updated the script to work with the new use of Ractive.js on the 8muses website.
 // @history      0.4.1 Fixed some css to better match the site.
+// @history	 0.5.0 Fixed Image links and more
 // ==/UserScript==
 cfg = new MonkeyConfig({
     title: '8Muses Downloader - Configuration',
@@ -170,6 +171,7 @@ function downloadAll(container) {
 	var doneLength = 0;
 
 	var downloadFunc = function(albumContainer) {
+		//console.log(albumContainer)
 		var imagebox = albumContainer.querySelectorAll('.gallery .c-tile:not(.image-a)');
 		var isImageAlbum = !!imagebox[0].attributes.href.value.match(/comics\/picture\//i);
 
@@ -178,20 +180,21 @@ function downloadAll(container) {
 		} else {
 			downloadAll(imagebox);
 		}
-	}
+	};
 
 	if(pagination && !container) {
-		var lastHref = pagination.querySelector('.last a').attributes.href.value;
+		var lastHref = pagination.querySelector('span:last-child a').attributes.href.value;
 		var pageCount = parseInt(lastHref.match(/[0-9]+$/)[0]);
 		var urls = [];
-		for(var i=1; i <= pageCount; i++) {
+		for(let i=1; i <= pageCount; i++) {
 			urls.push(location.protocol +'//'+ location.hostname + lastHref.replace(/[0-9]+$/, i));
 		}
 		getImageAlbum(urls, downloadFunc);
 	} else {
 		if(!container) updateProgressbar(0);
 
-		for(var i=0; i < itemContainers.length; i++) {
+		for(let i=0; i < itemContainers.length; i++) {
+			if(!itemContainers[i].attributes.href || itemContainers[i].attributes.href.value == "") continue;
 			let href = location.protocol +'//'+ location.hostname + itemContainers[i].attributes.href.value;
 			getImageAlbum(href, downloadFunc);
 		}
@@ -204,6 +207,7 @@ function getImageAlbum(url, callback) {
 			getImageAlbum(url[i], function(pageContainer) {
 				var items = pageContainer.querySelector('.gallery').innerHTML;
 				containerArray.push(items);
+
 				if(containerArray.length >= url.length) {
 					var container = document.implementation.createHTMLDocument().documentElement;
 					container.innerHTML = '<div class="gallery">' + containerArray.join('') + '</div>';
@@ -237,15 +241,18 @@ function getPageImage(i, image, callback) {
 		xhr.onload = function(e) {
 			var container = document.implementation.createHTMLDocument().documentElement;
 				container.innerHTML = xhr.responseText;
+
 			var data = JSON.parse(decodePublic(container.querySelector("#ractive-public").innerHTML.trim()));
 			var ext = data.picture.normalizedPath.match(/\..*?$/i);
 
 			object.path = image.href.match(/^.*?(picture|album)\/.*?\/(.*\/).*$/i)[2]; // including author
 			// object.path = image.href.match(/^.*?[0-9]+\/.*?\/(.*\/).*$/)[1]; 		// no author
 			//object.name = container.querySelector('.top-menu-breadcrumb li:last-of-type').innerText.trim(); //+ container.querySelector('#imageName').value.match(/\.([0-9a-z]+)(?:[\?#]|$)/i)[0];
-			object.name = data.picture.name + ext;
+			//object.name = data.picture.name + ext;
+			object.name = data.picture.name + ".jpg";
 			//object.imageHref = 'https://www-8muses-com.cdn.ampproject.org/i/www.8muses.com/image/fl' + container.querySelector('#imageDir').value + container.querySelector('#imageName').value;
-			object.imageHref = 'https://www-8muses-com.cdn.ampproject.org/i/www.8muses.com/image/fl/' + data.picture.publicUri + ext;
+			//object.imageHref = 'https://www.8muses.com/image/fl/' + data.picture.publicUri + ext;
+			object.imageHref = 'https://www.8muses.com/image/fl/' + data.picture.publicUri + ".jpg";
 			console.log(object);
 			getImageAsBlob(object.imageHref, function(blob) {
 				if(!blob) return;
@@ -281,11 +288,11 @@ function getImageAsBlob(url, callback) {
 
 function createZip(images) {
 	var filename = getFileName(images[0].path);
+	var zip = new JSZip();
 
 	// Generate single or multiple zip files.
 	if(Settings.singleFile && progress.current > 0) {
 		if(Settings.compressSubFolders) {
-			var zip = new JSZip();
 			for(let i=0; i < images.length; i++) {
 				zip.file(images[i].name, images[i].blob);
 			}
@@ -317,9 +324,8 @@ function createZip(images) {
 					saveAs(blob, filename);
 				});
 			}
-		}	
+		}
 	} else {
-		var zip = new JSZip();
 		for(let i=0; i < images.length; i++) {
 			zip.file(images[i].name, images[i].blob);
 		}
@@ -350,7 +356,7 @@ function generateZip(zip, filename, callback) {
 		if(progress.pages.current === progress.pages.items) updateProgressbar('Done!');
 	    // data contains here the complete zip file as a uint8array (the type asked in generateInternalStream)
 	});
-} 
+}
 
 function getFileName(pathname) {
 	var pathArray = pathname.replace(/\/$/, '').split('/');
