@@ -15,7 +15,7 @@
 // @icon         https://www.8muses.com/favicon.ico
 // @require      https://cdn.jsdelivr.net/jszip/3.1.3/jszip.min.js
 // @require      https://cdn.jsdelivr.net/filesaver.js/1.3.3/FileSaver.min.js
-// @require      https://cdn.rawgit.com/Kayla355/MonkeyConfig/d152bb448db130169dbd659b28375ae96e4c482d/monkeyconfig.js
+// @require      https://gitcdn.xyz/repo/Kayla355/MonkeyConfig/d152bb448db130169dbd659b28375ae96e4c482d/monkeyconfig.js
 // @history      0.2.0 'Download all', now has an option to compress all the individual .zip files into one zip with sub-folders. By default this will be on.
 // @history      0.2.1 Added an option to compress the subfolders created from the single file download option.
 // @history      0.2.2 Fixed a bug where it would trigger the download multiple times when the "single file" option was enabled and the "compress sub folders" option was not.
