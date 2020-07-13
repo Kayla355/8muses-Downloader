@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         8Muses Downloader
 // @namespace    https://github.com/Kayla355
-// @version      0.5.0
+// @version      0.5.1
 // @description  Download comics from 8muses.com
 // @author       Kayla355
-// @match        http://www.8muses.com/comics/album/*
-// @match        https://www.8muses.com/comics/album/*
+// @match        http://comics.8muses.com/comics/album/*
+// @match        https://comics.8muses.com/comics/album/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
 // @grant        GM_setValue
